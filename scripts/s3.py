@@ -1,93 +1,55 @@
 import boto3
+from bucket import BucketMgr
 import click
-from botocore.exceptions import ClientError
-from pathlib import Path
-from mimetypes import guess_type
 
 session = boto3.Session(profile_name='admin')
-s3 = session.resource('s3')
-s3c = session.client('s3')
+bucket_mgr = BucketMgr(session)
 
 @click.group()
 def cli():
     pass
 
+
 @cli.command('list-buckets')
 def listbuckets():
-    "List buckets in AWS accounts"
-    for bucket in s3.buckets.all():
+    """List buckets in AWS accounts."""
+    for bucket in bucket_mgr.all_buckets():
         print(bucket)
 
-@cli.command('bucket-objs')
+
+@cli.command('bucket-objs-opts')
 @click.option('--bucket-name', default=False)
-def get_bucket_objs(bucket_name):
+def get_bucket_objs_as_opts(bucket_name):
     "Get bucket objects"
-    for obj in s3.Bucket(bucket_name).objects.all():
+    for obj in bucket_mgr.all_objs(bucket_name):
         print(obj)
+
+
+@cli.command('bucket-objs')
+@click.argument('bucket_name')
+def get_bucket_objs(bucket_name):
+    """Get bucket objects."""
+    for obj in bucket_mgr.all_objs(bucket_name):
+        print(obj)
+
 
 #s3_bucket = s3.create_bucket(Bucket=bucket, CreateBucketConfiguration={'LocationConstraint': session.region_name})
 @cli.command('setup_bucket')
-@click.argument('bucket')
-def setup_bucket(bucket):
-    "create and configure s3 bucket"
-    s3_bucket = None
-    errormsg = "No errors"
-    try:
-        s3_bucket = s3.create_bucket(Bucket=bucket)
-    except ClientError as e:
-        if e.response['Error']['Code'] == 'BucketAlreadyOwnedByYou':
-            errormsg = e.response 
-            s3_bucket = s3.Bucket(bucket)
-        else:
-            raise e
-    
-    policy = """
-    {
-        "Version":"2012-10-17",
-        "Statement":[
-            {
-                "Sid":"PublicReadGetObject",
-                "Effect":"Allow",
-                "Principal":"*",
-                    "Action":["s3:GetObject"],
-                    "Resource":["arn:aws:s3:::%s/*"]
-            }
-        ]
-    }
-    """ % s3_bucket.name
-    policy = policy.strip()
-    policy_obj = s3_bucket.Policy()
-    policy_obj.put(Policy=policy)
+@click.argument('bucket_name')
+def setup_bucket(bucket_name):
+    """Create and configure s3 bucket."""
+    bucket = bucket_mgr.init_bucket(bucket_name)
+    bucket_mgr.set_policy(bucket)
+    url = bucket_mgr.config_website(bucket, "index.html", "err.html")
+    print(url)   
 
-    ws = s3_bucket.Website()
-    ws.put(WebsiteConfiguration={'ErrorDocument': {'Key': 'err.html'}, 'IndexDocument': {'Suffix': 'index.html'}})
-    url = "http://%s.s3-website.%s.amazonaws.com" % (s3_bucket.name, session.region_name)
 
-    #upload file
-    #s3_bucket.upload_file('samplesite/index.html', 'index.html', ExtraArgs={'ContentType': 'text/html'} )
-    print(url + "\n" + errormsg)
-    return
-
-#print("Path: {}\n Key: {}".format(p, p.relative_to(root)))
 @cli.command('sync')
 @click.argument('pathname', type=click.Path(exists=True))
-@click.argument('bucket')
-def sync(pathname, bucket):
-    "Sync contents of PATHNAME to BUCKET"
-    s3_bucket = s3.Bucket(bucket)
-    root = Path(pathname).expanduser().resolve()
-    def handle_dir(target):
-        
-        for p in target.iterdir():
-            if p.is_dir():
-                handle_dir(p)
-            if p.is_file():
-                upload_file(s3_bucket, str(p), str(p.relative_to(root)))                
-    handle_dir(root)
-
-def upload_file(s3_bucket, path, key):
-    content_type = guess_type(key)[0] or 'application/octet-stream'
-    s3_bucket.upload_file(path, key, ExtraArgs = {'ContentType': content_type })
+@click.argument('bucket_name')
+def sync(pathname, bucket_name):
+    """Sync contents of PATHNAME to BUCKET."""
+    bucket_mgr.sync(pathname, bucket_name)
 
 if __name__ == '__main__':
     cli()
