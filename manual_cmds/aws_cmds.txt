@@ -1,0 +1,15 @@
+Delete bucket files:
+    aws s3 rm s3://<bucket> --recursive
+
+Delete bucket:
+    aws s3 rb s3://<bucket>
+
+    
+import boto3    
+s3 = boto3.resource('s3')
+bucket = s3.Bucket('my-bucket')
+
+bucket.objects.all().delete()
+# for obj in bucket.objects.all():
+#    obj.delete()
+bucket.delete()

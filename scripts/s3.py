@@ -1,6 +1,8 @@
 import boto3
 import click
 from botocore.exceptions import ClientError
+from pathlib import Path
+from mimetypes import guess_type
 
 session = boto3.Session(profile_name='admin')
 s3 = session.resource('s3')
@@ -65,6 +67,27 @@ def setup_bucket(bucket):
     #s3_bucket.upload_file('samplesite/index.html', 'index.html', ExtraArgs={'ContentType': 'text/html'} )
     print(url + "\n" + errormsg)
     return
+
+#print("Path: {}\n Key: {}".format(p, p.relative_to(root)))
+@cli.command('sync')
+@click.argument('pathname', type=click.Path(exists=True))
+@click.argument('bucket')
+def sync(pathname, bucket):
+    "Sync contents of PATHNAME to BUCKET"
+    s3_bucket = s3.Bucket(bucket)
+    root = Path(pathname).expanduser().resolve()
+    def handle_dir(target):
+        
+        for p in target.iterdir():
+            if p.is_dir():
+                handle_dir(p)
+            if p.is_file():
+                upload_file(s3_bucket, str(p), str(p.relative_to(root)))                
+    handle_dir(root)
+
+def upload_file(s3_bucket, path, key):
+    content_type = guess_type(key)[0] or 'application/octet-stream'
+    s3_bucket.upload_file(path, key, ExtraArgs = {'ContentType': content_type })
 
 if __name__ == '__main__':
     cli()
