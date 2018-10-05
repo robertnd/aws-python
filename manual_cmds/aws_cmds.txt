@@ -21,17 +21,31 @@ python scripts/s3.py bucket-objs-opts --bucket-name robertnd-scriptdest
 python scripts/s3.py setup_bucket robertnd-scriptdest
 python scripts/s3.py sync kitten_web robertnd-emptybucket
 
-            s3.Bucket(name='cf-templates-9tkpx41czz8l-us-east-1')
-            s3.Bucket(name='codepipeline-us-east-1-476194890806')
-            s3.Bucket(name='elasticbeanstalk-us-east-1-357331607269')
-            s3.Bucket(name='mycloudtrailbucket01robertnd')
-            s3.Bucket(name='robertnd-codedeploy')
-            s3.Bucket(name='robertnd-masterclass')
-            s3.Bucket(name='robertnd-scriptdest')
-            s3.Bucket(name='robertnd-scriptedbucket')
-            s3.Bucket(name='robertnd-website')
+import boto3
+session = boto3.Session(profile_name='admin')
+ec2 = session.resource('ec2')
+key_name = 'python_automation_key'
+key_path = key_name + '.pem'
+key = ec2.create_key_pair(KeyName=key_name)
+key.key_material
 
+with open(key_path, 'w') as key_file:
+    key_file.write(key.key_material)
 
+import os, stat
+os.chmod(key_path, stat.S_IRUSR | stat.S_IWUSR)
+ls -l python_automation_key.pem
+ec2.images.filter(Owners=['amazon'])
+imags = ec2.images.filter(Owners=['amazon'])
+imags
+for img in imags:
+    print(img)
+img = ec2.Image('ami-0ff8a91507f77f867')
+img.description
+ami_name = img.name
+filters = [{'Name':'name', 'Values': [ami_name]}]
+list(ec2.images.filter(Owners=['amazon'], Filters=filters))
+%history
 
 
 
